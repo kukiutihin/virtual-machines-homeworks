@@ -1,13 +1,16 @@
 CXX = clang++
-CXXFLAGS = -O2 
+CXXFLAGS = -O2 -std=c++23 
 
 ifeq ($(shell uname), Darwin)
-	CXXFLAGS += -stdlib=libc++ -isysroot $$(xcrun --show-sdk-path)
+	CXXFLAGS += -isysroot $$(xcrun --show-sdk-path)
 endif
 
 cache: cache-characteristics/main.cpp 
 	$(CXX) $(CXXFLAGS) cache-characteristics/main.cpp -o cache 
 
+cache-debug: cache-characteristics/main.cpp 
+	$(CXX) $(CXXFLAGS) cache-characteristics/main.cpp -g -o cache 
+
 .PHONY : clean
 clean :
-	-rm cache 
+	@rm -rf cache cache.dSYM/

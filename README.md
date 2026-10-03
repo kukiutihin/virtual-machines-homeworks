@@ -1,5 +1,5 @@
-### Build & Run
+### HW1. Cache characteristics
 ```
-make
+make cache
 ./cache
 ```
