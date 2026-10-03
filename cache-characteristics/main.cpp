@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -21,12 +20,13 @@ using params_t = std::pair<size_t, size_t>;
 
 static const size_t TRIALS = 1000000;
 static const size_t WARMUP = 1000000;
+static const size_t MEASURES = 5;
 static const size_t MAX_ASSOC = 20;
 static const size_t MAX_STRIDE = 256 * 1024;
 static const size_t MIN_HIGHER_STRIDE = 16;
 static const size_t MIN_LOWER_STRIDE = 2;
 static const size_t PAGE_SIZE = 1024 * 4;
-static const double JUMP_BOUND = 1.4;
+static const double JUMP_BOUND = 1.25;
 static const double CONF_THRESHOLD = 0.8;
 static const size_t SPOTS_CL_FIND = 4 * 1024;
 
@@ -126,7 +126,9 @@ public:
   }
 };
 
-double measure_with_write(size_t stride, size_t spots) {
+size_t DUMMY;
+
+double measure_once(size_t stride, size_t spots) {
   /* stride = 32, spots = 4;
    * sizeof(size_t) = 8 => stride = 4 elements
    * [*, _, _, _, _, *, _, _, _, _, *, _, _, _, _, *]: *size_t
@@ -167,17 +169,16 @@ double measure_with_write(size_t stride, size_t spots) {
   auto end = steady_clock::now();
 
   delete[] array;
+  DUMMY = current;
   return duration<double, std::nano>(end - start).count() / TRIALS;
 }
 
-size_t nearest_2pow(size_t num) {
-  size_t prev_pow = std::bit_floor(num);
-  size_t next_pow = std::bit_ceil(num);
+double measure(size_t stride, size_t spots) {
+  std::vector<double> times;
+  for (size_t i = 0; i < MEASURES; i++)
+    times.push_back(measure_once(stride, spots));
 
-  return std::abs((long)num - (long)prev_pow) <=
-                 std::abs((long)num - (long)next_pow)
-             ? prev_pow
-             : next_pow;
+  return times[times.size() / 2];
 }
 
 std::optional<params_t> detect_L1(const std::vector<params_t> &jumps) {
@@ -187,10 +188,8 @@ std::optional<params_t> detect_L1(const std::vector<params_t> &jumps) {
 
     bool valid = false;
 
-    // sometimes measurements show values close to real associativity.
-    // lets try to normalize
-    size_t spots_norm = nearest_2pow(spots);
-    size_t next_spots_norm = nearest_2pow(next_spots);
+    size_t spots_norm = spots;
+    size_t next_spots_norm = next_spots;
 
     if (stride * 2 == next_stride && spots_norm == next_spots_norm * 2) {
       valid = true;
@@ -212,7 +211,7 @@ size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
                      double median) {
   while (l_spots < h_spots) {
     size_t spots = (l_spots + h_spots) / 2;
-    double time = measure_with_write(stride, spots);
+    double time = measure(stride, spots);
 
     if (time - median > 0.1 * median)
       h_spots = spots;
@@ -230,7 +229,7 @@ int main() {
 
   for (size_t i = 0; stride <= MAX_STRIDE; stride *= 2, spots = 1, i++) {
     for (size_t j = 0; spots <= MAX_ASSOC; spots++, j++) {
-      double time = measure_with_write(stride, spots);
+      double time = measure(stride, spots);
       table.push(stride, spots, time);
     }
   }
@@ -251,7 +250,7 @@ int main() {
     size_t spots2 = 0;
 
     for (size_t spots = 2; spots <= SPOTS_CL_FIND; spots *= 2) {
-      double time = measure_with_write(stride, spots);
+      double time = measure(stride, spots);
       double min_time = table.get_measurement(l1_assoc, stride).value_or(0.0);
 
       if (time - min_time > 0.1 * min_time) {
@@ -263,7 +262,7 @@ int main() {
     if (spots1 > 0)
       for (size_t spots = 2;
            spots <= std::max<size_t>(SPOTS_CL_FIND, spots1 * 2); spots *= 2) {
-        double time = measure_with_write(stride + stride / 2, spots);
+        double time = measure(stride + stride / 2, spots);
         double min_time = table.get_measurement(l1_assoc, stride).value_or(0.0);
 
         if (time - min_time > 0.1 * min_time) {
