@@ -224,9 +224,7 @@ int main() {
       detect_L1(jumps).value_or(std::pair(0, 0));
 
   bool last_was_dec = false;
-  bool waiting_inc = false;
   size_t line_size = 0;
-  size_t waiting_stride = 0;
 
   for (size_t stride = 16; stride <= MAX_STRIDE; stride *= 2) {
     size_t spots1 = 0;
@@ -257,22 +255,13 @@ int main() {
         }
       }
 
-    if (spots1 > 0 && spots2 > 0) {
-      if (waiting_inc && spots2 > spots1) {
-        line_size = waiting_stride;
-        break;
-      }
-
-      waiting_inc = false;
-
-      if (last_was_dec && spots2 > spots1) {
-        waiting_inc = true;
-        waiting_stride = stride;
-      }
-
-      if (spots1 > spots2)
-        last_was_dec = true;
-    }
+    if (spots1 > 0 && spots2 > 0 && last_was_dec && spots1 < spots2) {
+      line_size = stride;
+      break;
+    } else if (spots2 < spots1)
+      last_was_dec = true;
+    else
+      last_was_dec = false;
   }
 
   std::stringstream buffer;
