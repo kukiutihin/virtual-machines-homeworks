@@ -34,6 +34,7 @@ static const size_t MIN_HIGHER_STRIDE = 16;
 static const size_t MIN_LOWER_STRIDE = 2;
 static const double CONF_THRESHOLD = 0.8;
 static const size_t SPOTS_CL_FIND = 4 * 1024;
+static const size_t MAX_LINE_SIZE = 256;
 
 static const std::string_view BOLD = "\x1b[1m";
 static const std::string_view RESET = "\x1b[0m";
@@ -226,7 +227,7 @@ int main() {
   bool last_was_dec = false;
   size_t line_size = 0;
 
-  for (size_t stride = 16; stride <= MAX_STRIDE; stride *= 2) {
+  for (size_t stride = 16; stride <= MAX_LINE_SIZE; stride *= 2) {
     size_t spots1 = 0;
     size_t spots2 = 0;
 
