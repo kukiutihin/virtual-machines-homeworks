@@ -191,12 +191,12 @@ std::optional<params_t> detect_L1(const jumps_t &jumps) {
 }
 
 size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
-                     double median) {
+                     double target) {
   while (h_spots - l_spots > 1) {
     size_t spots = (l_spots + h_spots) / 2;
     double time = measure(stride, spots);
 
-    if (time - median > 0.1 * median)
+    if (time - target > 0.1 * target)
       h_spots = spots;
     else
       l_spots = spots;
@@ -232,7 +232,7 @@ int main() {
   const auto &[l1_stride, l1_assoc] =
       detect_L1(jumps).value_or(std::pair(0, 0));
 
-  bool last_was_dec = false;
+  // bool last_was_dec = false;
   size_t line_size = 0;
 
   for (size_t stride = 16; stride <= MAX_LINE_SIZE; stride *= 2) {
@@ -264,13 +264,16 @@ int main() {
         }
       }
 
-    if (spots1 > 0 && spots2 > 0 && last_was_dec && spots1 <= spots2) {
-      line_size = stride;
-      break;
-    } else if (spots2 < spots1)
-      last_was_dec = true;
-    else
-      last_was_dec = false;
+    if (spots1 > 0 && spots2 > 0) {
+      if (/* last_was_dec && */ spots2 >= spots1 * 0.9) {
+        line_size = stride;
+        break;
+      }
+      //   if (spots2 < spots1 * 0.9)
+      //     last_was_dec = true;
+      //   else
+      //     last_was_dec = false;
+    }
   }
 
   std::stringstream buffer;
