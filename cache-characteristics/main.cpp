@@ -52,9 +52,9 @@ double measure_once(size_t stride, size_t spots) {
    * sizeof(size_t) = 8 => stride = 4 elements
    * [*, _, _, _, _, *, _, _, _, _, *, _, _, _, _, *]: *size_t
    */
-  const size_t elem_size = sizeof(params_t);
+  const size_t elem_size = sizeof(size_t);
   const size_t elem_stride = stride / elem_size;
-  params_t *array = new params_t[elem_stride * spots + PAGE_SIZE / elem_size];
+  size_t *array = new size_t[elem_stride * spots + PAGE_SIZE / elem_size];
 
   size_t start_el = 0;
   while ((uintptr_t)(array + start_el) % PAGE_SIZE != 0)
@@ -69,21 +69,19 @@ double measure_once(size_t stride, size_t spots) {
   std::shuffle(points.begin(), points.end(), g);
 
   for (size_t i = 0; i < points.size() - 1; i++) {
-    array[points[i]] = {points[i + 1], 0};
+    array[points[i]] = points[i + 1];
   }
-  array[points[points.size() - 1]] = {points[0], 0};
+  array[points[points.size() - 1]] = points[0];
 
   size_t current = points[0];
 
   for (size_t trial = 0; trial < WARMUP; trial++) {
-    array[current].second++;
-    current = array[current].first;
+    current = array[current];
   }
 
   auto start = steady_clock::now();
   for (size_t trial = 0; trial < TRIALS; trial++) {
-    array[current].second++;
-    current = array[current].first;
+    current = array[current];
   }
   auto end = steady_clock::now();
 
@@ -97,6 +95,7 @@ double measure(size_t stride, size_t spots) {
   for (size_t i = 0; i < MEASURES; i++)
     times.push_back(measure_once(stride, spots));
 
+  std::sort(times.begin(), times.end());
   return times[times.size() / 2];
 }
 
@@ -110,7 +109,7 @@ struct Measurement {
 using Measurements = std::map<size_t, std::vector<Measurement>>;
 
 std::optional<double> get_measurement(size_t stride, size_t spots,
-                                      const Measurements measurements) {
+                                      const Measurements &measurements) {
   if (!measurements.contains(stride))
     return {};
 
@@ -193,7 +192,7 @@ std::optional<params_t> detect_L1(const jumps_t &jumps) {
 
 size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
                      double median) {
-  while (l_spots < h_spots) {
+  while (h_spots - l_spots > 1) {
     size_t spots = (l_spots + h_spots) / 2;
     double time = measure(stride, spots);
 
@@ -265,7 +264,7 @@ int main() {
         }
       }
 
-    if (spots1 > 0 && spots2 > 0 && last_was_dec && spots1 < spots2) {
+    if (spots1 > 0 && spots2 > 0 && last_was_dec && spots1 <= spots2) {
       line_size = stride;
       break;
     } else if (spots2 < spots1)
