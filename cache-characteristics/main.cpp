@@ -265,7 +265,7 @@ int main() {
       }
 
     if (spots1 > 0 && spots2 > 0) {
-      if (/* last_was_dec && */ spots2 >= spots1 * 0.9) {
+      if (/* last_was_dec && */ spots2 >= spots1) {
         line_size = stride;
         break;
       }
