@@ -1,5 +1,5 @@
 CXX = clang++
-CXXFLAGS = -O2 -std=c++23 
+CXXFLAGS = -O2 -std=c++20
 
 ifeq ($(shell uname), Darwin)
 	CXXFLAGS += -isysroot $$(xcrun --show-sdk-path)

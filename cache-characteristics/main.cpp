@@ -31,7 +31,7 @@ static const size_t MAX_STRIDE = 256 * 1024;
 static const double JUMP_BOUND = 1.25;
 
 static const size_t MIN_HIGHER_STRIDE = 16;
-static const size_t MIN_LOWER_STRIDE = 2;
+static const size_t MIN_LOWER_STRIDE = 8;
 static const double CONF_THRESHOLD = 0.8;
 static const size_t SPOTS_CL_FIND = 4 * 1024;
 static const size_t MAX_LINE_SIZE = 256;
@@ -209,7 +209,16 @@ int main() {
   size_t stride = MIN_HIGHER_STRIDE;
   size_t spots = 1;
 
+  for (size_t i = 0; stride <= MAX_STRIDE; stride *= 2, spots = 1, i++) {
+    for (size_t j = 0; spots <= MAX_ASSOC; spots++, j++) {
+      double time = measure(stride, spots);
+      DUMMY = time;
+    }
+  }
+
   Measurements measurements;
+  stride = MIN_HIGHER_STRIDE;
+  spots = 1;
 
   for (size_t i = 0; stride <= MAX_STRIDE; stride *= 2, spots = 1, i++) {
     for (size_t j = 0; spots <= MAX_ASSOC; spots++, j++) {
