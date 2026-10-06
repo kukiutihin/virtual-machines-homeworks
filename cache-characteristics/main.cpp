@@ -32,8 +32,10 @@ static const double JUMP_BOUND = 1.1;
 
 static const size_t MIN_HIGHER_STRIDE = 16;
 static const size_t MIN_LOWER_STRIDE = 8;
+static const size_t MAX_STRIDE_CL = 256;
 static const double CONF_THRESHOLD = 0.8;
-static const size_t SPOTS_CL_FIND = 4 * 1024;
+static const size_t MIN_SPOTS_CL = 8;
+static const size_t MAX_SPOTS_CL = 4 * 1024;
 static const size_t MAX_LINE_SIZE = 256;
 
 static const std::string_view BOLD = "\x1b[1m";
@@ -196,7 +198,7 @@ size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
     size_t spots = (l_spots + h_spots) / 2;
     double time = measure(stride, spots);
 
-    if (time - target > 0.1 * target)
+    if (time > target * 2)
       h_spots = spots;
     else
       l_spots = spots;
@@ -204,98 +206,82 @@ size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
   return l_spots;
 }
 
-Measurements load_hardcoded_measurements() {
-  const std::vector<size_t> strides = {16,    32,    64,    128,    256,
-                                       512,   1024,  2048,  4096,   8192,
-                                       16384, 32768, 65536, 131072, 262144};
+std::pair<size_t, std::string>
+detect_line_size(size_t cache_capacity, const Measurements &measurements,
+                 size_t assoc) {
+  std::stringstream buffer;
+  size_t waiting_stride = 0;
+  size_t line_size = 0;
 
-  const std::vector<std::vector<double>> table = {
-      /*  1 */ {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-                1.25, 1.25, 1.25, 1.25, 1.25},
-      /*  2 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       1.25, 1.25, 1.25},
-      /*  3 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       1.25, 1.25, 1.25},
-      /*  4 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       1.25, 1.25, 1.25},
-      /*  5 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       3.25, 3.25, 3.25},
-      /*  6 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       3.25, 3.25, 3.25},
-      /*  7 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       3.25, 3.25, 3.25},
-      /*  8 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25,
-       3.25, 3.25, 3.25},
-      /*  9 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.59, 1.55, 1.55, 2.76,
-       5.00, 5.00, 5.00},
-      /* 10 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.01,
-       5.01, 5.00, 5.00},
-      /* 11 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00,
-       5.00, 5.01, 5.00},
-      /* 12 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00,
-       5.00, 5.00, 5.00},
-      /* 13 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.01, 5.00,
-       5.01, 5.00, 5.00},
-      /* 14 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.01,
-       5.01, 5.00, 5.00},
-      /* 15 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.01,
-       5.01, 5.00, 5.01},
-      /* 16 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.01,
-       5.01, 5.00, 5.00},
-      /* 17 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.46, 3.00, 3.00, 3.59, 5.01,
-       5.01, 5.00, 6.06},
-      /* 18 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.76, 3.00, 3.00, 4.11, 5.01,
-       5.01, 5.00, 7.00},
-      /* 19 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 2.43, 3.00, 3.00, 4.58, 5.01,
-       5.01, 5.00, 7.00},
-      /* 20 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.01},
-      /* 21 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.01},
-      /* 22 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.00},
-      /* 23 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.00},
-      /* 24 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.00, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.01},
-      /* 25 */
-      {1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 3.00, 3.01, 3.00, 5.00, 5.01,
-       5.01, 5.00, 7.01}};
+  for (size_t h_stride = MIN_HIGHER_STRIDE; h_stride <= MAX_STRIDE_CL;
+       h_stride *= 2) {
+    size_t a = cache_capacity / h_stride;
+    double target = get_measurement(h_stride, assoc, measurements).value_or(0);
 
-  Measurements measurements;
-  for (size_t col = 0; col < strides.size(); ++col) {
-    size_t stride = strides[col];
-    for (size_t row = 0; row < table.size(); ++row) {
-      size_t spots = row + 1;
-      double time = table[row][col];
-      measurements[stride].push_back(Measurement(false, time, stride, spots));
+    buffer << BOLD
+           << std::format("H_STRIDE = {:<6} Expected spots (A) = {:<6} "
+                          "Target time = {:.3g} ns",
+                          h_stride, a, target)
+           << RESET << "\n";
+    buffer << std::string(62, '-') << "\n";
+    buffer << std::format("  {:<10} {:<14} {:<12} {:<12} {:<8}\n", "L_stride",
+                          "Total_stride", "Spots", "Ratio", "Trend");
+    buffer << std::string(62, '-') << "\n";
+
+    std::vector<size_t> results;
+    for (size_t l_stride = MIN_LOWER_STRIDE; l_stride < h_stride;
+         l_stride *= 2) {
+      size_t total_stride = h_stride + l_stride;
+      size_t s =
+          binary_search(MIN_SPOTS_CL, MAX_SPOTS_CL, total_stride, target);
+      results.push_back(s);
+
+      double ratio = static_cast<double>(s) / static_cast<double>(a);
+      std::string_view trend_str = (s < a) ? "DEC" : "INC";
+      std::string_view color = (s < a) ? BLUE : RED;
+
+      buffer << std::format("  {:<10} {:<14} {:<12} {:<12.4f} {}{}{}\n",
+                            l_stride, total_stride, s, ratio, color, trend_str,
+                            RESET);
     }
+
+    double dec = 0;
+    double inc = 0;
+
+    for (const auto &s : results)
+      if (s < a)
+        dec++;
+      else
+        inc++;
+
+    double dec_conf = dec / static_cast<double>(results.size());
+    double inc_conf = inc / static_cast<double>(results.size());
+
+    std::string_view verdict = "UNKNOWN";
+    bool should_break = false;
+
+    if (dec_conf >= CONF_THRESHOLD) {
+      verdict = "DEC";
+      waiting_stride = h_stride;
+    } else if (inc_conf >= CONF_THRESHOLD) {
+      verdict = "INC";
+      if (waiting_stride != 0)
+        should_break = true;
+    }
+
+    line_size = h_stride;
+
+    buffer << BOLD
+           << std::format("-> {} (DEC conf: {:.0f}%, INC "
+                          "conf: {:.0f}%)\n\n",
+                          verdict, dec_conf * 100.0, inc_conf * 100.0)
+           << RESET;
+
+    if (should_break)
+      break;
   }
 
-  return measurements;
+  return {line_size, buffer.str()};
 }
 
 int main() {
@@ -320,56 +306,16 @@ int main() {
     }
   }
 
-  // auto measurements = load_hardcoded_measurements();
   jumps_t jumps = detect_jumps(measurements);
   std::cout << "\n" << compile_table(measurements, jumps) << std::endl;
 
   const auto &[l1_stride, l1_assoc] =
       detect_L1(jumps).value_or(std::pair(0, 0));
 
-  // bool last_was_dec = false;
-  size_t line_size = 0;
+  const auto &[line_size, log] =
+      detect_line_size(l1_assoc * l1_stride, measurements, l1_assoc);
 
-  for (size_t stride = 16; stride <= MAX_LINE_SIZE; stride *= 2) {
-    size_t spots1 = 0;
-    size_t spots2 = 0;
-
-    for (size_t spots = 2; spots <= SPOTS_CL_FIND; spots *= 2) {
-      double time = measure(stride, spots);
-      double min_time =
-          get_measurement(stride, l1_assoc, measurements).value_or(0.0);
-
-      if (time - min_time > 0.1 * min_time) {
-        spots1 = binary_search(spots / 2, spots, stride, min_time);
-        break;
-      }
-    }
-
-    if (spots1 > 0)
-      for (size_t spots = 2;
-           spots <= std::max<size_t>(SPOTS_CL_FIND, spots1 * 2); spots *= 2) {
-        double time = measure(stride + stride / 2, spots);
-        double min_time =
-            get_measurement(stride, l1_assoc, measurements).value_or(0.0);
-
-        if (time - min_time > 0.1 * min_time) {
-          spots2 =
-              binary_search(spots / 2, spots, stride + stride / 2, min_time);
-          break;
-        }
-      }
-
-    if (spots1 > 0 && spots2 > 0) {
-      if (/* last_was_dec && */ spots2 >= spots1) {
-        line_size = stride;
-        break;
-      }
-      //   if (spots2 < spots1 * 0.9)
-      //     last_was_dec = true;
-      //   else
-      //     last_was_dec = false;
-    }
-  }
+  std::cout << "\n" << log << "\n" << std::endl;
 
   std::stringstream buffer;
   buffer << BOLD << std::format("{:<{}}", "Capacity", RESULT_TABLE_COL_WIDHT)
