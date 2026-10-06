@@ -226,7 +226,6 @@ detect_line_size(size_t cache_capacity, const Measurements &measurements,
     buffer << std::string(62, '-') << "\n";
     buffer << std::format("  {:<10} {:<14} {:<12} {:<12} {:<8}\n", "L_stride",
                           "Total_stride", "Spots", "Ratio", "Trend");
-    buffer << std::string(62, '-') << "\n";
 
     size_t total_stride = h_stride + h_stride / 2;
     size_t spots =
