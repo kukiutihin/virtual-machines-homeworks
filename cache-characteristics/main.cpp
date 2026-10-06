@@ -228,35 +228,24 @@ detect_line_size(size_t cache_capacity, const Measurements &measurements,
                           "Total_stride", "Spots", "Ratio", "Trend");
     buffer << std::string(62, '-') << "\n";
 
-    std::vector<size_t> results;
-    for (size_t l_stride = MIN_LOWER_STRIDE; l_stride < h_stride;
-         l_stride *= 2) {
-      size_t total_stride = h_stride + l_stride;
-      size_t s =
-          binary_search(MIN_SPOTS_CL, MAX_SPOTS_CL, total_stride, target);
-      results.push_back(s);
+    size_t total_stride = h_stride + h_stride / 2;
+    size_t spots =
+        binary_search(MIN_SPOTS_CL, MAX_SPOTS_CL, total_stride, target);
 
-      double ratio = static_cast<double>(s) / static_cast<double>(a);
-      std::string_view trend_str = (s < a) ? "DEC" : "INC";
-      std::string_view color = (s < a) ? BLUE : RED;
-
-      buffer << std::format("  {:<10} {:<14} {:<12} {:<12.4f} {}{}{}\n",
-                            l_stride, total_stride, s, ratio, color, trend_str,
-                            RESET);
-    }
-    buffer << "\n";
-
-    std::vector<double> rations;
-    for (const auto &x : results)
-      rations.push_back((double)x / (double)a);
-
-    std::sort(rations.begin(), rations.end());
-    double median = rations[results.size() / 2];
-
-    if (std::abs(1 - median) < best) {
+    double ratio = (double)spots / (double)a;
+    if (std::abs(1 - ratio) < best) {
       line_size = h_stride;
-      best = std::abs(1 - median);
+      best = std::abs(1 - ratio);
     }
+
+    std::string_view trend_str = (spots < a) ? "DEC" : "INC";
+    std::string_view color = (spots < a) ? BLUE : RED;
+
+    buffer << std::format("  {:<10} {:<14} {:<12} {:<12.4f} {}{}{}\n",
+                          h_stride / 2, total_stride, spots, ratio, color,
+                          trend_str, RESET);
+
+    buffer << "\n";
   }
 
   return {line_size, buffer.str()};
