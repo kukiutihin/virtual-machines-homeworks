@@ -32,8 +32,7 @@ static const double JUMP_BOUND = 1.1;
 
 static const size_t MIN_HIGHER_STRIDE = 16;
 static const size_t MIN_LOWER_STRIDE = 8;
-static const size_t MAX_STRIDE_CL = 256;
-static const double CONF_THRESHOLD = 0.8;
+static const size_t MAX_STRIDE_CL = 128;
 static const size_t MIN_SPOTS_CL = 8;
 static const size_t MAX_SPOTS_CL = 4 * 1024;
 static const size_t MAX_LINE_SIZE = 256;
@@ -198,7 +197,7 @@ size_t binary_search(size_t l_spots, size_t h_spots, size_t stride,
     size_t spots = (l_spots + h_spots) / 2;
     double time = measure(stride, spots);
 
-    if (time > target * 2)
+    if (time > target * JUMP_BOUND)
       h_spots = spots;
     else
       l_spots = spots;
@@ -210,8 +209,9 @@ std::pair<size_t, std::string>
 detect_line_size(size_t cache_capacity, const Measurements &measurements,
                  size_t assoc) {
   std::stringstream buffer;
-  size_t waiting_stride = 0;
+
   size_t line_size = 0;
+  double best = 100;
 
   for (size_t h_stride = MIN_HIGHER_STRIDE; h_stride <= MAX_STRIDE_CL;
        h_stride *= 2) {
@@ -244,41 +244,19 @@ detect_line_size(size_t cache_capacity, const Measurements &measurements,
                             l_stride, total_stride, s, ratio, color, trend_str,
                             RESET);
     }
+    buffer << "\n";
 
-    double dec = 0;
-    double inc = 0;
+    std::vector<double> rations;
+    for (const auto &x : results)
+      rations.push_back((double)x / (double)a);
 
-    for (const auto &s : results)
-      if (s < a)
-        dec++;
-      else
-        inc++;
+    std::sort(rations.begin(), rations.end());
+    double median = rations[results.size() / 2];
 
-    double dec_conf = dec / static_cast<double>(results.size());
-    double inc_conf = inc / static_cast<double>(results.size());
-
-    std::string_view verdict = "UNKNOWN";
-    bool should_break = false;
-
-    if (dec_conf >= CONF_THRESHOLD) {
-      verdict = "DEC";
-      waiting_stride = h_stride;
-    } else if (inc_conf >= CONF_THRESHOLD) {
-      verdict = "INC";
-      if (waiting_stride != 0)
-        should_break = true;
+    if (std::abs(1 - median) < best) {
+      line_size = h_stride;
+      best = std::abs(1 - median);
     }
-
-    line_size = h_stride;
-
-    buffer << BOLD
-           << std::format("-> {} (DEC conf: {:.0f}%, INC "
-                          "conf: {:.0f}%)\n\n",
-                          verdict, dec_conf * 100.0, inc_conf * 100.0)
-           << RESET;
-
-    if (should_break)
-      break;
   }
 
   return {line_size, buffer.str()};
